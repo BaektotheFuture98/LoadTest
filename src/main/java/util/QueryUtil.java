@@ -4,7 +4,8 @@ import java.text.ParseException;
 import java.util.Date;
 
 public class QueryUtil {
-    public String getQuery(String date) throws ParseException {
+
+    public String getSearchQuery(String date) {
         DateUtil dateUtil = new DateUtil();
         String plusMin = dateUtil.getPlusMin(date);
         return "{\n" +
@@ -20,7 +21,7 @@ public class QueryUtil {
                 "}";
     }
 
-    public String getAggsQuery(String start_date, String end_date) throws ParseException {
+    public String getAggsQuery(String start_date, String end_date) {
         return "{\n" +
                 "  \"size\": 0,\n" +
                 "  \"query\": {\n" +

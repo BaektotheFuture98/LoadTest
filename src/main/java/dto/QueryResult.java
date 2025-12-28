@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class QueryResult {
-    private String num_total;
     private String id;
     private double duration;
+    private boolean time_out;
 }
