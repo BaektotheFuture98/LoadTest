@@ -11,7 +11,10 @@ import service.ElasticsearchService;
 import util.QueryUtil;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 @Slf4j
@@ -81,45 +84,75 @@ public class MainApplication {
         /// 븐 단위 별 쿼리 실행
         /// 해당 시간대 쿼리 수집
         // 1분마다 하나의 쿼리 묶음들을 병렬로 실행
+        // 쿼리 묶음들은 분마다 다른 종류여야 함
         // 스레드 단위에서 멀티 스레딩을 해도 될까? => 매우 위험할듯, 어케 조절하지
         // ScheduledThreadPoolExecutor
         // ScheduledExecutorService로 스레드를 실행시킬건데 CompletableFuture.supplyAsnyc()에 ScheduledThreadPoolExecutor를 넣을때도 동일한
         // 결과를 낼 수 있는지 X
-        //
 
-        int list_length = query_list.size();
-        try(ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(list_length)) {
-            // func(runnable, callable), delay, timeunit으로 구성되어 있는데 delay는 timeunit에 따라 단위가 결정된다(분,초 등등)
-            ScheduledFuture<?> future = scheduler.schedule(() -> run_query(service, query_list.), 1, TimeUnit.MINUTES);
+        int listLength = query_list.size();
+        Collections.sort(query_list);
+        AtomicInteger index = new AtomicInteger(0);
 
-        }catch (Exception e) {
-            e.printStackTrace();
+        ScheduledExecutorService scheduler =
+                Executors.newScheduledThreadPool(listLength);
+
+        ExecutorService workerPool =
+                Executors.newFixedThreadPool(listLength);
+
+        //3️⃣ Callable의 반환값으로 제어하려는 사고 자체가 문제
+        try {
+            ScheduledFuture<?> scheduledFuture =
+                    scheduler.schedule(() -> {
+                        int currentIndex = index.getAndIncrement();
+                        if (index.get() < listLength) {
+                            List<QueryResult> results = runQuery(service, query_list, currentIndex, workerPool);
+                            results.forEach(result -> {
+                                System.out.println(result.toString());
+                            });
+                        }else{
+                            System.out.println("All queries have been processed.");
+                            scheduler.shutdown();
+                        }
+                    }, 1, TimeUnit.MINUTES);
+        } finally {
+            scheduler.shutdown();
+            workerPool.shutdown();
         }
     }
 
-    private static void run_query(ElasticsearchService service, ArrayList<TestQuery> testQuery) {
-        ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
-        for (TestQuery dto : testQuery) {
-             // 리스트를 돌건데 return 값을 어떻게 처리하냐...
-            CompletableFuture<String> future = CompletableFuture.supplyAsync(()-> {
-                switch (dto.getKw_command()) {
-                    case "aggs" :
-                        return service.getAggsResult("",dto);
-                    case "search" :
-                        return service.getSearchResult("",dto);
+    private static List<QueryResult> runQuery(
+            ElasticsearchService service,
+            List<QueryInfo> testQueries,
+            int currentIndex,
+            Executor executor
+    ) {
+        QueryInfo info = testQueries.get(currentIndex);
+        List<CompletableFuture<QueryResult>> futures = new ArrayList<>();
+        //streams vs forEach
+        info.getTest_queries().forEach(testQuery -> {
+            CompletableFuture<QueryResult> result = CompletableFuture.supplyAsync(() -> {
+                switch (testQuery.getKw_command()) {
+                    case "aggs":
+                        return service.getAggsResult("", testQuery);
+                    case "search":
+                        return service.getSearchResult("", testQuery);
                     default:
-                        return null;
+                        throw new IllegalArgumentException("Unknown command");
                 }
-            }).thenApply(QueryResult::toString);
-
-            try {
-                future.get(10, TimeUnit.MINUTES);
-            }catch (Exception e) {
-                e.printStackTrace();
-            }
+            }, executor);
+            futures.add(result);
+        });
 
 
-            // get() VS join() 비교 필요
-        }
+        // 모든 쿼리 완료 대기
+        CompletableFuture.allOf(
+                futures.toArray(new CompletableFuture[0])
+        ).join();
+
+        // 결과 수집 (thread-safe)
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .toList();
     }
 }
