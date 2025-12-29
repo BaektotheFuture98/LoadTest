@@ -1,21 +1,34 @@
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.*;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CompletableFutureTest {
-    @DisplayName("Executor Test")
-    void parallel(){
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(3);
-        executor.schedule()
-        CompletableFuture<String> test = CompletableFuture.supplyAsync(this::test, executor);
-        test.join();
+    @Test
+    public void givenJoinMethod_whenThrow_thenGetUncheckedException() {
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> "Test join");
+
+        assertEquals("Test join", future.join());
+
+        CompletableFuture<String> exceptionFuture = CompletableFuture.failedFuture(new RuntimeException("Test join exception"));
+
+        assertThrows(CompletionException.class, exceptionFuture::join);
     }
 
-    private String test(){
-        System.out.printf("[%s]\n", Thread.currentThread().getName());
-        return "test";
-    }
+    @Test
+    public void givenGetMethod_whenThrow_thenGetCheckedException() {
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> "Test get");
 
+        try {
+            assertEquals("Test get", future.get());
+        } catch (InterruptedException | ExecutionException e) {
+            fail("Exception should not be thrown");
+        }
+
+        CompletableFuture<String> exceptionFuture = CompletableFuture.failedFuture(new RuntimeException("Test get exception"));
+
+        assertThrows(ExecutionException.class, exceptionFuture::get);
+    }
 }

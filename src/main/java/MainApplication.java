@@ -23,14 +23,13 @@ public class MainApplication {
         Dotenv dotenv = Dotenv.load();
         ElasticsearchRepo repo = new ElasticsearchRepo(dotenv.get("QUETTAI_HOST"), dotenv.get("QUETTAI_USER"), dotenv.get("QUETTAI_PW"));
         ElasticsearchService service = new ElasticsearchService(repo);
-
         QueryUtil queryUtil = new QueryUtil();
+
         /// 문제가 되는 시점 2025-10-14 16:00 ~ 2025-10-14 16:04
         /// 분 단위 검색
         String aggs = queryUtil.getAggsQuery("2025-10-14 16:00", "2025-10-14 16:04");
         JSONObject aggsResponse = service.getAggsResult("quetta_logs_2025", aggs);
         JSONArray buckets = aggsResponse.getJSONObject("by_hour").getJSONArray("buckets");
-
 
         /// 분 단위별 쿼리 생성
         /// 이걸 보내서 테스트 하는게 아니라 이걸 통해 테스트용 쿼리를 가져올 수 있음
@@ -82,42 +81,34 @@ public class MainApplication {
         Thread.sleep(60000);
 
         /// 븐 단위 별 쿼리 실행
-        /// 해당 시간대 쿼리 수집
-        // 1분마다 하나의 쿼리 묶음들을 병렬로 실행
-        // 쿼리 묶음들은 분마다 다른 종류여야 함
-        // 스레드 단위에서 멀티 스레딩을 해도 될까? => 매우 위험할듯, 어케 조절하지
-        // ScheduledThreadPoolExecutor
-        // ScheduledExecutorService로 스레드를 실행시킬건데 CompletableFuture.supplyAsnyc()에 ScheduledThreadPoolExecutor를 넣을때도 동일한
-        // 결과를 낼 수 있는지 X
-
         int listLength = query_list.size();
+
+
+
+        int cores = Runtime.getRuntime().availableProcessors();
+        int maxThreads = Math.max(1, (int) (cores * 0.8));
+
         Collections.sort(query_list);
         AtomicInteger index = new AtomicInteger(0);
 
         ScheduledExecutorService scheduler =
-                Executors.newScheduledThreadPool(listLength);
+                Executors.newScheduledThreadPool(maxThreads);
 
-        ExecutorService workerPool =
-                Executors.newFixedThreadPool(listLength);
-
-        //3️⃣ Callable의 반환값으로 제어하려는 사고 자체가 문제
         try {
-            ScheduledFuture<?> scheduledFuture =
-                    scheduler.schedule(() -> {
-                        int currentIndex = index.getAndIncrement();
-                        if (index.get() < listLength) {
-                            List<QueryResult> results = runQuery(service, query_list, currentIndex, workerPool);
-                            results.forEach(result -> {
-                                System.out.println(result.toString());
-                            });
-                        }else{
-                            System.out.println("All queries have been processed.");
-                            scheduler.shutdown();
-                        }
-                    }, 1, TimeUnit.MINUTES);
-        } finally {
-            scheduler.shutdown();
-            workerPool.shutdown();
+                scheduler.schedule(() -> {
+                    int currentIndex = index.getAndIncrement();
+                    if (index.get() < listLength) {
+                        List<QueryResult> results = runQuery(service, query_list, currentIndex, scheduler);
+                        results.forEach(result -> {
+                            System.out.println(result.toString());
+                        });
+                    }else{
+                        System.out.println("All queries have been processed.");
+                        scheduler.shutdown();
+                    }
+                }, 1, TimeUnit.MINUTES);
+        }catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -129,7 +120,6 @@ public class MainApplication {
     ) {
         QueryInfo info = testQueries.get(currentIndex);
         List<CompletableFuture<QueryResult>> futures = new ArrayList<>();
-        //streams vs forEach
         info.getTest_queries().forEach(testQuery -> {
             CompletableFuture<QueryResult> result = CompletableFuture.supplyAsync(() -> {
                 switch (testQuery.getKw_command()) {
