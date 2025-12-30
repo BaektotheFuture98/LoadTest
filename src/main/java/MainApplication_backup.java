@@ -1,12 +1,12 @@
-import dto.QueryAtMinuteInterval;
 import dto.QueryInfo;
 import dto.QueryResult;
 import dto.TestQuery;
-import io.github.cdimascio.dotenv.Dotenv;
+import dto.QueryAtMinuteInterval;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import repository.ElasticsearchRepo;
+import io.github.cdimascio.dotenv.Dotenv;
 import service.ElasticsearchService;
 import util.QueryUtil;
 
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 @Slf4j
-public class MainApplication {
+public class MainApplication_backup {
     public static void main(String[] args) throws Exception {
         Dotenv dotenv = Dotenv.load();
         ElasticsearchRepo repo = new ElasticsearchRepo(dotenv.get("QUETTAI_HOST"), dotenv.get("QUETTAI_USER"), dotenv.get("QUETTAI_PW"));
