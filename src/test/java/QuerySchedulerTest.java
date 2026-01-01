@@ -22,7 +22,7 @@ class QuerySchedulerTest {
         Collections.sort(query_list);
         int listLength = query_list.size();
         int cores = Runtime.getRuntime().availableProcessors();
-        int maxThreads = Math.max(1, (int) (cores * 0.5));
+        int maxThreads = Math.max(1, (int) (cores * 1));
         log.info("maxThreads: " + maxThreads);
 
         // 중요: 메인 스레드가 기다려줄 수 있게 설정
@@ -32,26 +32,25 @@ class QuerySchedulerTest {
         AtomicInteger index = new AtomicInteger(0);
 
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(3);
-        ExecutorService executor = new ThreadPoolExecutor(1, maxThreads, 5, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+        ExecutorService executor = new ThreadPoolExecutor(20, 20, 5, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
         log.info("테스트 시작");
 
-        // 주기적 실행 (테스트를 위해 1분이 아닌 3초 주기로 변경)
         scheduler.scheduleAtFixedRate(() -> {
             int currentIndex = index.getAndIncrement();
             if (currentIndex < listLength) {
-                log.info("\n[Scheduler] {}번 인덱스 실행 시작 : {}\n", currentIndex, Thread.currentThread().getName());
+                // 불필요한 공백과 \n을 제거하고 정갈하게 출력
+                log.info("[Scheduler] {}번 예약 (Thread: {})", currentIndex, Thread.currentThread().getName());
                 executor.execute(new RunQuery(service, query_list, currentIndex, executor, countDownLatch));
-                log.info("[Latch] 카운트 감소: {}\n", countDownLatch.getCount());
             } else {
-                log.info(">>> 모든 쿼리가 예약되었습니다. 정리를 시작합니다.");
+                log.info(">>> 모든 쿼리 예약 완료. 스케줄러 종료.");
                 scheduler.shutdown();
-                executor.shutdown();
             }
-        }, 0, 3, TimeUnit.SECONDS); // 3초 주기
+        }, 0, 3, TimeUnit.SECONDS);
 
         // [중요] 모든 쿼리 세트가 끝날 때까지 최대 2분간 메인 스레드 대기
         boolean finished = countDownLatch.await(1, TimeUnit.MINUTES);
+        executor.shutdown();
 
         if (finished) {
             try{

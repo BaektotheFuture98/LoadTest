@@ -13,6 +13,7 @@ public class QueryInfo implements Comparable<QueryInfo>{
     private String time;
     private transient LocalDateTime timeKey; // 파싱 결과 캐시(직렬화 제외)
     private ArrayList<TestQuery> test_queries;
+
     public void setTime(String time) {
         this.time = time;
         this.timeKey = (time != null ? LocalDateTime.parse(time, FMT) : null);

@@ -40,7 +40,7 @@ public class StubElasticsearchService {
                 Thread.sleep(10000); // 10초 대기 (1분 초과)
             } else {
                 // 일반적인 경우 100~1000ms 사이 랜덤 지연
-                Thread.sleep((long) (Math.random() * 3900) + 100);
+                Thread.sleep((long) (Math.random() * 3000) + 100);
             }
         } catch (InterruptedException e) {
             // cancel(true) 호출 시 여기서 인터럽트 발생

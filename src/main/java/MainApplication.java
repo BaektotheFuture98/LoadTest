@@ -11,10 +11,8 @@ import service.ElasticsearchService;
 import util.QueryUtil;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 
 @Slf4j
@@ -46,7 +44,7 @@ public class MainApplication {
                 dto.setDoc_count(doc_count);
 
                 aggs_list.add(dto);
-            }catch (Exception e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         });
@@ -68,7 +66,7 @@ public class MainApplication {
                     testQuery.setQuery(hit.getString("at_request_url"));
                     test_queries.add(testQuery);
                 });
-            }catch (Exception e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
             queryInfo.setTime(dto.getTime());
@@ -81,69 +79,19 @@ public class MainApplication {
         Thread.sleep(60000);
 
         /// 분 단위 별 쿼리 실행
-        try {
-            int listLength = query_list.size();
+        ExecutorService executor = Executors.newFixedThreadPool(10);
 
-            int cores = Runtime.getRuntime().availableProcessors();
-            int maxThreads = Math.max(1, (int) (cores * 0.5));
+        List<CompletableFuture<QueryResult>> futures = query_list.stream().flatMap(queryInfo -> queryInfo.getTest_queries().stream().map(testQuery -> CompletableFuture.supplyAsync(() -> {
+            switch (testQuery.getKw_command()) {
+                case "aggs":
+                    return service.getAggsResult("", testQuery);
+                case "search":
+                    return service.getSearchResult("", testQuery);
+                default:
+                    throw new IllegalArgumentException("Unknown command");
+            }
+        },executor))).toList();
 
-            Collections.sort(query_list);
-            AtomicInteger index = new AtomicInteger(0);
-
-            ScheduledExecutorService scheduler =
-                    Executors.newScheduledThreadPool(3);  // DelayedWorkQueue()를 쓰기 때문에 executor을 새로 생성
-            ExecutorService executor = new ThreadPoolExecutor(
-                    1, maxThreads, 3, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
-            );
-
-            scheduler.scheduleAtFixedRate(() -> {
-                int currentIndex = index.getAndIncrement();
-                if (currentIndex < listLength) {
-                    List<QueryResult> results = runQuery(service, query_list, currentIndex, executor);
-                    results.forEach(result -> {
-                        System.out.println(result.toString());
-                    });
-                }else{
-                    System.out.println("All queries have been processed.");
-                    scheduler.shutdown();
-                    executor.shutdown();
-                }
-            }, 0, 1, TimeUnit.MINUTES);
-        }catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static List<QueryResult> runQuery(
-            ElasticsearchService service,
-            List<QueryInfo> testQueries,
-            int currentIndex,
-            Executor executor
-    ) {
-        QueryInfo info = testQueries.get(currentIndex);
-        List<CompletableFuture<QueryResult>> futures = new ArrayList<>();
-        info.getTest_queries().forEach(testQuery -> {
-            CompletableFuture<QueryResult> result = CompletableFuture.supplyAsync(() -> {
-                switch (testQuery.getKw_command()) {
-                    case "aggs":
-                        return service.getAggsResult("", testQuery);
-                    case "search":
-                        return service.getSearchResult("", testQuery);
-                    default:
-                        throw new IllegalArgumentException("Unknown command");
-                }
-            }, executor);
-            futures.add(result);
-        });
-
-        // 모든 쿼리 완료 대기
-        CompletableFuture.allOf(
-                futures.toArray(new CompletableFuture[0])
-        ).join();
-
-        // 결과 수집 (thread-safe)
-        return futures.stream()
-                .map(CompletableFuture::join)
-                .toList();
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 }
