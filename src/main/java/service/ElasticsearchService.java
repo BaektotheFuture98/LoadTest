@@ -31,6 +31,7 @@ public class ElasticsearchService {
             dto.setId(testQuery.getId());
             dto.setDuration(obj.getInt("took"));
             dto.setTime_out(obj.getBoolean("timed_out"));
+            System.out.printf(dto.toString());
             return dto;
         }catch (Exception e){
             e.printStackTrace();
@@ -56,6 +57,7 @@ public class ElasticsearchService {
             dto.setId(testQuery.getId());
             dto.setDuration(obj.getInt("took"));
             dto.setTime_out(obj.getBoolean("timed_out"));
+            System.out.printf(dto.toString());
             return dto;
         }catch (Exception e){
             e.printStackTrace();

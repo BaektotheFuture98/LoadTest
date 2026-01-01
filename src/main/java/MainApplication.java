@@ -80,12 +80,12 @@ public class MainApplication {
         // 부하가 합쳐져있으면 안되기 때문에 분리를 위해 1분 대기
         Thread.sleep(60000);
 
-        /// 븐 단위 별 쿼리 실행
+        /// 분 단위 별 쿼리 실행
         try {
             int listLength = query_list.size();
 
             int cores = Runtime.getRuntime().availableProcessors();
-            int maxThreads = Math.max(1, (int) (cores * 0.8));
+            int maxThreads = Math.max(1, (int) (cores * 0.5));
 
             Collections.sort(query_list);
             AtomicInteger index = new AtomicInteger(0);
