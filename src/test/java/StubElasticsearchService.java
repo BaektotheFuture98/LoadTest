@@ -36,7 +36,7 @@ public class StubElasticsearchService {
     private void simulateDelay(String id) {
         try {
             // 특정 ID(예: "TIMEOUT")일 경우 1분 넘게 대기시켜 타임아웃 테스트 가능
-            if ("TIMEOUT_TEST".equals(id)) {
+            if (id.contains("TIMEOUT")) {
                 Thread.sleep(10000); // 10초 대기 (1분 초과)
             } else {
                 // 일반적인 경우 100~1000ms 사이 랜덤 지연

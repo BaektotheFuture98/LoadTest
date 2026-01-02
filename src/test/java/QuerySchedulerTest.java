@@ -21,9 +21,9 @@ class QuerySchedulerTest {
 
         Collections.sort(query_list);
         int listLength = query_list.size();
-        int cores = Runtime.getRuntime().availableProcessors();
-        int maxThreads = Math.max(1, (int) (cores * 1));
-        log.info("maxThreads: " + maxThreads);
+//        int cores = Runtime.getRuntime().availableProcessors();
+//        int maxThreads = Math.max(1, (int) (cores * 0.8));
+//        log.info("maxThreads: " + maxThreads);
 
         // 중요: 메인 스레드가 기다려줄 수 있게 설정
         CountDownLatch countDownLatch = new CountDownLatch(listLength);
@@ -81,29 +81,6 @@ class QuerySchedulerTest {
         }
     }
 
-    private static void runQuery(StubElasticsearchService service, List<QueryInfo> testQueries, int currentIndex, Executor executor) {
-        try {
-            QueryInfo info = testQueries.get(currentIndex);
-            List<CompletableFuture<QueryResult>> futures = info.getTest_queries().stream()
-                    .map(dto -> CompletableFuture.supplyAsync(() -> {
-                        log.info("currentIndex: " + currentIndex + ", dto: " + dto);
-                        switch (dto.getKw_command()) {
-                            case "search" :
-                                return service.getSearchResult("test", dto);
-                            case "aggs" :
-                                return service.getAggsResult("test", dto);
-                            default :
-                                throw new IllegalArgumentException("Unknown: " + dto.getKw_command());
-                        }
-                    }, executor)).toList();
-
-            // 1분 대기
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        } catch (Exception e) {
-            System.err.println("쿼리 실행 중 오류 발생: " + e.getMessage());
-        }
-    }
-
     private List<QueryInfo> createMockData(int count) {
         List<QueryInfo> list = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -113,7 +90,7 @@ class QuerySchedulerTest {
             TestQuery q2 = new TestQuery();
             q2.setId("Q-" + i + "-2"); q2.setKw_command("aggs"); q2.setQuery("q2 query");
             TestQuery q3 = new TestQuery();
-            q3.setId("TIMEOUT_TEST"); q3.setKw_command("aggs"); q3.setQuery("q3 query");
+            q3.setId("Q-" + i +"TIMEOUT_TEST" + "-3"); q3.setKw_command("aggs"); q3.setQuery("q3 query");
 
             ArrayList<TestQuery> queries = new ArrayList<>();
             queries.add(q1);
